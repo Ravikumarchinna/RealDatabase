@@ -6,84 +6,131 @@
 //
 
 import UIKit
+import RealmSwift
+import Realm
+
+
 
 class TodoListTableViewController: UITableViewController {
 
+    let realm = try! Realm()
+    var itemArray:Results<Item>?
+    
+    var selectedCategory:Category? {
+        didSet{
+            loadItems()
+        }
+    }
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        // Uncomment the following line to preserve selection between presentations
-        // self.clearsSelectionOnViewWillAppear = false
-
-        // Uncomment the following line to display an Edit button in the navigation bar for this view controller.
-        // self.navigationItem.rightBarButtonItem = self.editButtonItem
+        loadItems()
     }
 
+    @IBAction func add_todoList(_ sender: Any) {
+        
+        var textfield = UITextField()
+        let alert = UIAlertController(title: "Add New Item", message: "", preferredStyle: .alert)
+        let action = UIAlertAction(title: "Add Item", style: .default) { (action) in
+            
+            if let currentCategory = self.selectedCategory{
+                
+                do {
+                    try self.realm.write{
+                        let newItem = Item()
+                        newItem.name = textfield.text!
+                        newItem.dateCreated = Date()
+                        currentCategory.items.append(newItem)
+                    }
+                } catch  {
+                    print("Error saving new item , \(error)")
+                }
+            }
+            self.loadItems()
+            self.tableView.reloadData()
+        }
+        
+        alert.addTextField { (alertTextfield) in
+            alertTextfield.placeholder = "Create new Item"
+            textfield = alertTextfield
+        }
+        alert.addAction(action)
+        self.present(alert, animated: true) {
+        }
+    }
+    
+    func save(category:Category) {
+        do {
+            try realm.write(){
+                realm.add(category)
+            }
+        } catch  {
+            print("error ...........\(error)")
+        }
+    }
+    func loadItems()  {
+        itemArray = selectedCategory?.items.sorted(byKeyPath: "name", ascending:true)
+        tableView.reloadData()
+    }
+    
+    
     // MARK: - Table view data source
 
-    override func numberOfSections(in tableView: UITableView) -> Int {
-        // #warning Incomplete implementation, return the number of sections
-        return 0
-    }
-
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        // #warning Incomplete implementation, return the number of rows
-        return 0
+        return itemArray?.count ?? 1
     }
-
-    /*
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "reuseIdentifier", for: indexPath)
+        let cell = tableView.dequeueReusableCell(withIdentifier: "todolist", for: indexPath)
 
-        // Configure the cell...
-
+        if let item = itemArray?[indexPath.row] {
+            cell.textLabel?.text = item.name
+            cell.accessoryType = item.done ? .checkmark : .none
+        }
+        else{
+            cell.textLabel?.text = itemArray?[indexPath.row].name ?? "No Item added"
+        }
         return cell
     }
-    */
-
-    /*
-    // Override to support conditional editing of the table view.
-    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the specified item to be editable.
-        return true
+    
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        
+        if let item = itemArray?[indexPath.row] {
+            do {
+            try realm.write{
+                //...............To Delete the Items
+             //   realm.delete(item)
+                item.done = !item.done
+            }
+            }catch {
+                print("Error saving done status \(error)")
+            }
+        }
+        self.tableView.reloadData()
+        tableView.deselectRow(at: indexPath, animated: true)
     }
-    */
-
-    /*
-    // Override to support editing the table view.
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        if editingStyle == .delete {
-            // Delete the row from the data source
-            tableView.deleteRows(at: [indexPath], with: .fade)
-        } else if editingStyle == .insert {
-            // Create a new instance of the appropriate class, insert it into the array, and add a new row to the table view
-        }    
-    }
-    */
-
-    /*
-    // Override to support rearranging the table view.
-    override func tableView(_ tableView: UITableView, moveRowAt fromIndexPath: IndexPath, to: IndexPath) {
-
-    }
-    */
-
-    /*
-    // Override to support conditional rearranging of the table view.
-    override func tableView(_ tableView: UITableView, canMoveRowAt indexPath: IndexPath) -> Bool {
-        // Return false if you do not want the item to be re-orderable.
-        return true
-    }
-    */
-
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
-        // Get the new view controller using segue.destination.
-        // Pass the selected object to the new view controller.
-    }
-    */
-
 }
+extension TodoListTableViewController:UISearchBarDelegate{
+    
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+//        let predicate = NSPredicate(format: "name CONTAINS[cd] %@",searchBar.text!)
+//        itemArray = itemArray?.filter(predicate).sorted(byKeyPath: "name", ascending: true)
+        
+        itemArray = itemArray?.filter("name CONTAINS[cd] %@",searchBar.text!).sorted(byKeyPath: "dateCreated", ascending: true)
+        tableView.reloadData()
+        
+        tableView.reloadData()
+    }
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0 {
+            loadItems()
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+        }
+        
+    }
+    
+    
+}
+
+
